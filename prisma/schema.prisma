@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  draft
+  pending
+  active
+  limited
+  featured
+  archived
+  removed
+}
+
+enum ClaimStatus {
+  requested
+  approved
+  rejected
+  withdrawn
+}
+
+enum CollectionKind {
+  editorial
+}
+
+enum RepoHealthStatus {
+  unknown
+  healthy
+  degraded
+  broken
+}
+
+model User {
+  id             String                @id @default(uuid())
+  githubUserId   BigInt                @unique
+  githubLogin    String                @unique
+  displayName    String
+  avatarUrl      String?
+  bio            String?
+  websiteUrl     String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  creator        Creator?
+  submitted      Project[]             @relation("SubmitterProjects")
+  submissions    ProjectSubmission[]
+  likes          ProjectLike[]
+  saves          ProjectSave[]
+  follows        BuilderFollow[]
+  collections    Collection[]
+  claims         ProjectCreatorClaim[] @relation("ClaimantUser")
+  reviewedClaims ProjectCreatorClaim[] @relation("ReviewerUser")
+}
+
+model Creator {
+  id              String                @id @default(uuid())
+  slug            String                @unique
+  displayName     String
+  bio             String?
+  avatarUrl       String?
+  websiteUrl      String?
+  githubLogin     String?
+  claimedByUserId String?               @unique
+  claimStatus     ClaimStatus           @default(requested)
+  claimedAt       DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  claimedByUser   User?                 @relation(fields: [claimedByUserId], references: [id])
+  projects        Project[]
+  follows         BuilderFollow[]
+  claims          ProjectCreatorClaim[]
+}
+
+model Repository {
+  id                        String              @id @default(uuid())
+  githubRepositoryId        BigInt              @unique
+  canonicalUrl              String              @unique
+  ownerLogin                String
+  name                      String
+  fullName                  String              @unique
+  description               String?
+  homepageUrl               String?
+  defaultBranch             String?
+  primaryLanguage           String?
+  licenseSpdx               String?
+  topics                    String[]
+  starsCount                Int                 @default(0)
+  forksCount                Int                 @default(0)
+  watchersCount             Int                 @default(0)
+  openIssuesCount           Int                 @default(0)
+  isFork                    Boolean             @default(false)
+  isArchived                Boolean             @default(false)
+  isPrivate                 Boolean             @default(false)
+  pushedAt                  DateTime?
+  createdAtGithub           DateTime?
+  lastSyncedAt              DateTime?
+  syncStatus                String              @default("unknown")
+  healthStatus              RepoHealthStatus    @default(unknown)
+  metadataCompletenessScore Int                 @default(0)
+  staleDays                 Int                 @default(0)
+  brokenLinkCount           Int                 @default(0)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  project                   Project?
+  submissions               ProjectSubmission[]
+  syncRuns                  RepositorySyncRun[]
+}
+
+model Project {
+  id                String               @id @default(uuid())
+  repositoryId      String               @unique
+  slug              String               @unique
+  title             String
+  summary           String?
+  longDescription   String?
+  status            ProjectStatus        @default(pending)
+  submitterUserId   String
+  claimedCreatorId  String?
+  primaryCategoryId String?
+  demoUrl           String?
+  docsUrl           String?
+  githubUrl         String
+  submittedAt       DateTime             @default(now())
+  publishedAt       DateTime?
+  featuredAt        DateTime?
+  archivedAt        DateTime?
+  removedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  repository        Repository           @relation(fields: [repositoryId], references: [id])
+  submitter         User                 @relation("SubmitterProjects", fields: [submitterUserId], references: [id])
+  claimedCreator    Creator?             @relation(fields: [claimedCreatorId], references: [id])
+  primaryCategory   Category?            @relation("PrimaryCategory", fields: [primaryCategoryId], references: [id])
+  submissions       ProjectSubmission[]
+  creatorClaims     ProjectCreatorClaim[]
+  categories        ProjectCategory[]
+  collections       CollectionItem[]
+  likes             ProjectLike[]
+  saves             ProjectSave[]
+  score             ProjectScore?
+}
+
+model ProjectSubmission {
+  id                   String      @id @default(uuid())
+  projectId            String?
+  repositoryId         String
+  submitterUserId      String
+  sourceUrl            String
+  note                 String?
+  submissionSource     String      @default("manual")
+  syncStatus           String      @default("pending_sync")
+  resolutionStatus     String      @default("unresolved")
+  resolvedAt           DateTime?
+  duplicateOfProjectId String?
+  createdAt            DateTime    @default(now())
+  project              Project?    @relation(fields: [projectId], references: [id])
+  repository           Repository  @relation(fields: [repositoryId], references: [id])
+  submitter            User        @relation(fields: [submitterUserId], references: [id])
+}
+
+model ProjectCreatorClaim {
+  id               String      @id @default(uuid())
+  projectId        String
+  creatorId        String
+  claimantUserId   String
+  status           ClaimStatus @default(requested)
+  evidenceUrl      String?
+  notes            String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  project          Project     @relation(fields: [projectId], references: [id])
+  creator          Creator     @relation(fields: [creatorId], references: [id])
+  claimantUser     User        @relation("ClaimantUser", fields: [claimantUserId], references: [id])
+  reviewedByUser   User?       @relation("ReviewerUser", fields: [reviewedByUserId], references: [id])
+}
+
+model Category {
+  id          String            @id @default(uuid())
+  slug        String            @unique
+  name        String
+  description String?
+  parentId    String?
+  sortOrder   Int               @default(0)
+  isActive    Boolean           @default(true)
+  parent      Category?         @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]        @relation("CategoryTree")
+  projects    ProjectCategory[]
+  primaryIn   Project[]         @relation("PrimaryCategory")
+}
+
+model ProjectCategory {
+  projectId  String
+  categoryId String
+  primary    Boolean  @default(false)
+  project    Project  @relation(fields: [projectId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([projectId, categoryId])
+}
+
+model Collection {
+  id           String         @id @default(uuid())
+  kind         CollectionKind @default(editorial)
+  slug         String         @unique
+  title        String
+  description  String?
+  editorUserId String
+  status       String         @default("published")
+  publishedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  editor       User           @relation(fields: [editorUserId], references: [id])
+  items        CollectionItem[]
+}
+
+model CollectionItem {
+  collectionId String
+  projectId    String
+  sortOrder    Int
+  note         String?
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  project      Project    @relation(fields: [projectId], references: [id])
+
+  @@id([collectionId, projectId])
+}
+
+model ProjectLike {
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id])
+
+  @@id([userId, projectId])
+}
+
+model ProjectSave {
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id])
+
+  @@id([userId, projectId])
+}
+
+model BuilderFollow {
+  userId    String
+  creatorId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  creator   Creator  @relation(fields: [creatorId], references: [id])
+
+  @@id([userId, creatorId])
+}
+
+model ProjectScore {
+  projectId        String   @id
+  visibilityScore  Int      @default(0)
+  qualityScore     Int      @default(0)
+  engagementScore  Int      @default(0)
+  freshnessScore   Int      @default(0)
+  editorialScore   Int      @default(0)
+  searchScore      Int      @default(0)
+  statusGateScore  Int      @default(0)
+  scoreVersion     Int      @default(1)
+  signals          Json
+  lastCalculatedAt DateTime
+  project          Project  @relation(fields: [projectId], references: [id])
+}
+
+model RepositorySyncRun {
+  id                       String     @id @default(uuid())
+  repositoryId             String
+  runType                  String
+  status                   String
+  startedAt                DateTime
+  finishedAt               DateTime?
+  errorCode                String?
+  errorMessage             String?
+  githubRateLimitRemaining Int?
+  payload                  Json
+  repository               Repository @relation(fields: [repositoryId], references: [id])
+}

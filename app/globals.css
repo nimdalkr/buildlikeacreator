@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --page-bg: #f4f6fb;
+  --panel-bg: #ffffff;
+  --panel-border: #e5e8f3;
+  --text-main: #171924;
+  --text-muted: #667085;
+  --text-faint: #98a2b3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(92, 99, 234, 0.08), transparent 24%),
+    linear-gradient(180deg, #fbfcff 0%, #f4f6fb 48%, #eef1f8 100%);
+  color: var(--text-main);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(34, 153, 96, 0.16);
+}
+
+.surface {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 12px 26px rgba(74, 80, 209, 0.06);
+}
+
+.eyebrow {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.prose-muted {
+  color: var(--text-muted);
+}
+
+.sidebar-label {
+  color: #8e95a5;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
