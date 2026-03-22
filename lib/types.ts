@@ -98,3 +98,18 @@ export type SearchResult = {
   slug: string;
   description: string;
 };
+
+export type UserInterestConfidence = "low" | "medium" | "high";
+
+export type UserInterestProfile = {
+  repoCount: number;
+  analyzedRepoCount: number;
+  confidence: UserInterestConfidence;
+  confidenceScore: number;
+  topCategories: string[];
+  topSubcategories: string[];
+  topTags: string[];
+  topLanguages: string[];
+  manualInterests: string[];
+  lastAnalyzedAt: string;
+};

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateCatalogCache, refreshCatalog } from "@/lib/catalog";
+import { inferPrimaryCategoryFromSignals } from "@/lib/category-inference";
 import { upsertImportedRepo } from "@/lib/catalog-store";
 import { fetchGitHubRepository } from "@/lib/github";
 import {
@@ -8,102 +9,6 @@ import {
   normalizeGitHubRepoUrl
 } from "@/lib/repo-import";
 import { getSessionUser } from "@/lib/session";
-
-function inferCategory(topics: string[], language?: string | null) {
-  const normalizedTopics = topics.map((topic) => topic.toLowerCase());
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["llm", "rag", "chatbot", "prompt", "voice-ai", "vision", "ocr"].includes(topic)
-    )
-  ) {
-    return "ai-llm";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["agent", "agents", "automation", "workflow", "integration", "orchestration", "browser-automation"].includes(topic)
-    )
-  ) {
-    return "agents-automation";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["cli", "devtools", "developer-tools", "codegen", "debugging", "testing", "qa"].includes(topic)
-    )
-  ) {
-    return "developer-tools";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["starter", "template", "boilerplate", "saas-template", "admin-template"].includes(topic)
-    )
-  ) {
-    return "templates-boilerplates";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["design-system", "component-library", "ui", "frontend", "animation", "tailwindcss"].includes(topic)
-    )
-  ) {
-    return "design-frontend";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["analytics", "dashboard", "etl", "data-pipeline", "web-scraping", "monitoring"].includes(topic)
-    )
-  ) {
-    return "data-analytics";
-  }
-
-  if (
-    normalizedTopics.some((topic) => ["starter", "template", "boilerplate"].includes(topic))
-  ) {
-    return "templates-boilerplates";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["seo", "keyword-research", "marketing", "content-marketing", "competitor-analysis"].includes(topic)
-    )
-  ) {
-    return "marketing-seo-research";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["web3", "blockchain", "wallet", "solidity", "smart-contracts", "defi"].includes(topic)
-    )
-  ) {
-    return "web3-blockchain";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["discord-bot", "telegram-bot", "community", "leaderboard", "social"].includes(topic)
-    )
-  ) {
-    return "community-social";
-  }
-
-  if (
-    normalizedTopics.some((topic) =>
-      ["godot", "unity", "phaser", "game", "simulation", "interactive"].includes(topic)
-    )
-  ) {
-    return "gaming-interactive";
-  }
-
-  if (language?.toLowerCase() === "typescript") {
-    return "developer-tools";
-  }
-
-  return "developer-tools";
-}
 
 export async function POST(request: NextRequest) {
   const sessionUser = await getSessionUser();
@@ -189,7 +94,12 @@ export async function POST(request: NextRequest) {
   }
 
   const primaryCategory =
-    body.category ?? inferCategory(snapshot.repo.topics ?? [], snapshot.repo.language);
+    body.category ??
+    inferPrimaryCategoryFromSignals(
+      snapshot.repo.topics ?? [],
+      snapshot.repo.language,
+      `${snapshot.repo.name} ${snapshot.repo.description ?? ""}`
+    );
 
   await upsertImportedRepo({
     repoFullName: snapshot.repo.full_name,

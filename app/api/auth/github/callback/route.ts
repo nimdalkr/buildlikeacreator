@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { syncInterestProfileFromGitHub } from "@/lib/personalization";
 import { consumeOAuthState, startSession } from "@/lib/session";
 
 type GitHubAccessTokenResponse = {
@@ -88,12 +89,28 @@ export async function GET(request: NextRequest) {
   }
 
   const githubUser = (await userResponse.json()) as GitHubUserResponse;
+  let interestProfile = undefined;
+
+  try {
+    const syncResult = await syncInterestProfileFromGitHub({
+      accessToken: tokenPayload.access_token,
+      manualInterests: []
+    });
+    interestProfile = syncResult.profile;
+  } catch {
+    interestProfile = undefined;
+  }
+
   await startSession({
     id: `github-${githubUser.id}`,
     githubUserId: githubUser.id,
     githubLogin: githubUser.login,
     displayName: githubUser.name || githubUser.login,
     avatarUrl: githubUser.avatar_url
+  }, {
+    accessToken: tokenPayload.access_token,
+    scopes: tokenPayload.scope?.split(/[,\s]+/).filter(Boolean) ?? [],
+    interestProfile
   });
 
   return NextResponse.redirect(new URL(next, request.url));

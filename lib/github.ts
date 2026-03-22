@@ -30,6 +30,8 @@ type GitHubRepoResponse = {
   };
 };
 
+export type GitHubViewerRepository = GitHubRepoResponse;
+
 export type GitHubSearchRepositoryItem = {
   id: number;
   name: string;
@@ -103,6 +105,15 @@ function getGitHubHeaders() {
   return headers;
 }
 
+function getViewerGitHubHeaders(accessToken: string) {
+  return new Headers({
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${accessToken}`,
+    "User-Agent": "build-like-a-creator",
+    "X-GitHub-Api-Version": "2022-11-28"
+  });
+}
+
 async function fetchGitHubJson<T>(path: string) {
   const response = await fetch(`${GITHUB_API_BASE}${path}`, {
     headers: getGitHubHeaders(),
@@ -131,6 +142,36 @@ export async function fetchGitHubRepository(fullName: string): Promise<GitHubRep
     owner: ownerData,
     fetchedAt: new Date().toISOString()
   };
+}
+
+export async function fetchGitHubViewerRepositories(accessToken: string) {
+  const maxPages = Number(process.env.GITHUB_VIEWER_REPO_PAGES ?? "3");
+  const perPage = 100;
+  const repositories: GitHubViewerRepository[] = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const response = await fetch(
+      `${GITHUB_API_BASE}/user/repos?affiliation=owner&sort=updated&per_page=${perPage}&page=${page}`,
+      {
+        headers: getViewerGitHubHeaders(accessToken),
+        signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`GitHub viewer repositories request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const pageItems = (await response.json()) as GitHubViewerRepository[];
+    repositories.push(...pageItems);
+
+    if (pageItems.length < perPage) {
+      break;
+    }
+  }
+
+  return repositories;
 }
 
 export async function searchGitHubRepositories(

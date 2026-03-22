@@ -3,6 +3,7 @@ import { getDictionaryForLocale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { getSessionUser } from "@/lib/session";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,6 +22,17 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
+  const sessionUser = await getSessionUser();
+
+  if (!sessionUser) {
+    return (
+      <html lang={locale}>
+        <body className="min-h-screen bg-[linear-gradient(180deg,#f5f9ff_0%,#ffffff_100%)] font-sans text-ink-900 antialiased">
+          <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">{children}</main>
+        </body>
+      </html>
+    );
+  }
 
   return (
     <html lang={locale}>

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SectionHeading } from "@/components/section-heading";
 import { getDictionaryForLocale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
+import { getSession } from "@/lib/session";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -13,10 +15,15 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const locale = await getLocale();
   const dictionary = getDictionaryForLocale(locale);
+  const session = await getSession();
   const resolvedSearchParams = (await searchParams) ?? {};
   const next = resolvedSearchParams.next ?? "/";
   const error = resolvedSearchParams.error;
   const configured = Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
+
+  if (session?.user) {
+    redirect(next);
+  }
 
   const errorMessage =
     error === "missing_github_oauth"
@@ -37,7 +44,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <SectionHeading
           eyebrow={dictionary.authPage.eyebrow}
           title={dictionary.authPage.title}
-          description={dictionary.authPage.description}
+          description="Sign in with GitHub first. BLAC reads your repo metadata to build a simpler personalized discovery home."
         />
         <div className="mt-8 space-y-4">
           {errorMessage ? (
@@ -58,10 +65,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           )}
           <p className="prose-muted text-sm">
-            Sign in with your real GitHub account to save, like, follow, and submit repositories.
+            We use your GitHub identity and repo metadata to recommend projects worth checking next.
           </p>
-          <Link className="text-sm font-semibold text-ink-700 underline-offset-4 hover:underline" href="/submit">
-            {dictionary.authPage.back}
+          <Link className="text-sm font-semibold text-ink-700 underline-offset-4 hover:underline" href="/">
+            Back to intro
           </Link>
         </div>
       </section>

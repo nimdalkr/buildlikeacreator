@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { categories } from "@/lib/catalog";
-import { getDictionaryForLocale, localizeCategory } from "@/lib/i18n";
+import { getDictionaryForLocale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
 import { getSessionUser } from "@/lib/session";
 
@@ -10,9 +9,9 @@ export async function SiteHeader() {
   const sessionUser = await getSessionUser();
 
   const navItems = [
+    { href: "/", label: "Home" },
     { href: "/explore", label: "Projects" },
     { href: "/creators", label: "Builders" },
-    { href: "/collections", label: "Collections" },
     { href: "/saved", label: "Saved" },
     { href: "/submit", label: "Submit" }
   ];
@@ -28,7 +27,7 @@ export async function SiteHeader() {
               </span>
               <div>
                 <p className="font-display text-[1.08rem] leading-none text-ink-900">{dictionary.brand.title}</p>
-                <p className="mt-1 text-xs text-ink-500">Discover tools through builders, not raw repo lists</p>
+                <p className="mt-1 text-xs text-ink-500">Personalized open-source discovery</p>
               </div>
             </Link>
             <Link
@@ -61,7 +60,7 @@ export async function SiteHeader() {
               </span>
               <div>
                 <p className="font-display text-[1.3rem] leading-none text-ink-900">{dictionary.brand.title}</p>
-                <p className="mt-1 text-xs text-ink-500">Creator-first open-source discovery</p>
+                <p className="mt-1 text-xs text-ink-500">Your GitHub-shaped discovery home</p>
               </div>
             </Link>
             <Link
@@ -76,9 +75,9 @@ export async function SiteHeader() {
         <div className="rounded-[1.4rem] border border-ink-100 bg-white p-4">
           <p className="sidebar-label">Focus</p>
           <div className="mt-3 rounded-[1.1rem] border border-ink-200 bg-[#f7f9fc] px-4 py-4 text-ink-900">
-            <p className="text-sm font-semibold text-ink-900">Start with a project, then follow the builder behind it.</p>
+            <p className="text-sm font-semibold text-ink-900">Login first, then let your repos rank the feed.</p>
             <p className="mt-2 text-xs leading-6 text-ink-600">
-              This is a discovery layer, not another repo list.
+              Home is now the starting point. Broader browsing is secondary.
             </p>
           </div>
         </div>
@@ -99,34 +98,19 @@ export async function SiteHeader() {
         </div>
 
         <div className="rounded-[1.4rem] border border-ink-100 bg-white p-4">
-          <p className="sidebar-label">Top Categories</p>
-          <div className="mt-3 space-y-2">
-            {categories.slice(0, 6).map((category) => (
-              <Link
-                key={category.slug}
-                className="block rounded-[1rem] border border-ink-100 px-3 py-3 transition hover:border-ink-300 hover:bg-ink-50"
-                href={`/explore?category=${category.slug}`}
-              >
-                <p className="text-sm font-semibold text-ink-900">{localizeCategory(locale, category.slug)}</p>
-                <p className="mt-1 text-xs text-ink-500">
-                  {category.subcategories?.slice(0, 2).join(" · ")}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[1.4rem] border border-ink-100 bg-white p-4">
           <p className="sidebar-label">Account</p>
           <div className="mt-3">
             {sessionUser ? (
               <>
                 <p className="text-sm font-semibold text-ink-900">@{sessionUser.githubLogin}</p>
-                <p className="mt-1 text-xs text-ink-500">Save projects, follow builders, and submit repos.</p>
+                <p className="mt-1 text-xs text-ink-500">
+                  Recommendations, saves, follows, and submissions all use this GitHub identity.
+                </p>
               </>
             ) : (
               <>
                 <p className="text-sm font-semibold text-ink-900">Sign in with GitHub</p>
-                <p className="mt-1 text-xs text-ink-500">Use one identity for saving, following, and attribution.</p>
+                <p className="mt-1 text-xs text-ink-500">We personalize the product after login.</p>
               </>
             )}
           </div>

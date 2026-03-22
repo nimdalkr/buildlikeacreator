@@ -1,201 +1,253 @@
 import Link from "next/link";
-import { CollectionCard } from "@/components/collection-card";
 import { CreatorCard } from "@/components/creator-card";
+import { InterestPicker } from "@/components/interest-picker";
 import { ProjectCard } from "@/components/project-card";
+import { RefreshRecommendationsButton } from "@/components/refresh-recommendations-button";
 import { SearchForm } from "@/components/search-form";
 import { SectionHeading } from "@/components/section-heading";
-import {
-  categories,
-  getCatalogStats,
-  getFeaturedProjects,
-  getTrendingProjects,
-  getCollections,
-  getCreators
-} from "@/lib/catalog";
+import { buildPersonalizedHomeData, getSuggestedInterestCategories } from "@/lib/personalization";
 import { getDictionaryForLocale, localizeCategory } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
+import { getSession } from "@/lib/session";
+import type { UserInterestProfile } from "@/lib/types";
 import { getViewerState } from "@/lib/viewer-state";
 
-const categoryIcons = ["A", "W", "D", "T", "F", "X", "C", "G", "S", "I"];
+type HomePageProps = {
+  searchParams?: Promise<{
+    next?: string;
+  }>;
+};
 
-export default async function HomePage() {
+function getEmptyProfile(): UserInterestProfile {
+  return {
+    repoCount: 0,
+    analyzedRepoCount: 0,
+    confidence: "low",
+    confidenceScore: 0,
+    topCategories: [],
+    topSubcategories: [],
+    topTags: [],
+    topLanguages: [],
+    manualInterests: [],
+    lastAnalyzedAt: new Date(0).toISOString()
+  };
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
   const locale = await getLocale();
   const dictionary = getDictionaryForLocale(locale);
+  const session = await getSession();
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const next = resolvedSearchParams.next ?? "/";
+  const configured = Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
+
+  if (!session?.user) {
+    const loginHref = configured
+      ? `/api/auth/github/start?next=${encodeURIComponent(next)}`
+      : `/auth/login?next=${encodeURIComponent(next)}`;
+
+    return (
+      <div className="space-y-6">
+        <section className="overflow-hidden rounded-[2rem] border border-ink-200 bg-white">
+          <div className="border-b border-ink-100 px-6 py-5">
+            <div className="flex items-center justify-between gap-4">
+              <Link className="flex items-center gap-3" href="/">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-900 text-sm font-bold text-white">
+                  BC
+                </span>
+                <div>
+                  <p className="font-display text-[1.4rem] leading-none text-ink-900">{dictionary.brand.title}</p>
+                  <p className="mt-1 text-sm text-ink-500">GitHub login first. Recommendations second.</p>
+                </div>
+              </Link>
+              <Link className="rounded-full bg-ink-900 px-5 py-3 text-sm font-semibold text-white" href={loginHref}>
+                Continue with GitHub
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-6 px-6 py-8 lg:grid-cols-[1.35fr_0.9fr] lg:px-8 lg:py-10">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Simple mode</p>
+              <h1 className="mt-4 max-w-3xl font-display text-5xl leading-[0.98] text-ink-900">
+                Sign in first. Then let your GitHub repos shape the home feed.
+              </h1>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-ink-600">
+                BLAC no longer starts with a public repo wall. It starts with your GitHub identity, checks what you
+                already build, and recommends projects that match your actual stack and interests.
+              </p>
+
+              {resolvedSearchParams.next ? (
+                <div className="mt-5 rounded-[1.2rem] border border-[#d7e4ff] bg-[#f4f8ff] px-4 py-3 text-sm text-[#23417c]">
+                  Login is required before you can open <span className="font-semibold">{resolvedSearchParams.next}</span>.
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link className="rounded-full bg-ink-900 px-5 py-3 text-sm font-semibold text-white" href={loginHref}>
+                  Continue with GitHub
+                </Link>
+                <Link
+                  className="rounded-full border border-ink-200 bg-white px-5 py-3 text-sm font-semibold text-ink-800"
+                  href="/auth/login"
+                >
+                  View login details
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-[1.6rem] border border-ink-100 bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)] p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">What happens after login</p>
+              <div className="mt-5 space-y-5">
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">1. We read your repo metadata</p>
+                  <p className="mt-1 text-sm leading-6 text-ink-600">
+                    Repo names, descriptions, topics, languages, stars, and recent activity. Not source code.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">2. We infer your interests</p>
+                  <p className="mt-1 text-sm leading-6 text-ink-600">
+                    Categories like AI, automation, dev tools, templates, data, Web3, and more.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">3. Your home becomes personalized</p>
+                  <p className="mt-1 text-sm leading-6 text-ink-600">
+                    Recommended projects first, then builders worth following, then deeper exploration.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   const viewerState = await getViewerState();
-  const ui = {
-    heroEyebrow: "Project discovery",
-    heroTitle: "Find open-source projects you can actually understand before you click.",
-    heroDescription:
-      "Start with what the tool does, why it matters, and who built it. Follow the builder only after the project earns your attention.",
-    projectCta: "Browse projects",
-    builderCta: "Browse builders",
-    builderSectionEyebrow: "Builder-first",
-    builderSectionTitle: "Follow builders, not just repos.",
-    builderSectionDescription:
-      "Use builder cards when you want to track people who keep shipping useful public work.",
-    projectSectionEyebrow: "Project-first",
-    projectSectionTitle: "Compare projects fast, then go deeper.",
-    projectSectionDescription:
-      "Each card should answer what it is, who it is for, and whether it still looks alive."
-  };
-  const [featuredProjects, allTrendingProjects, creators, collections, stats] = await Promise.all([
-    getFeaturedProjects(),
-    getTrendingProjects(),
-    getCreators(),
-    getCollections(),
-    getCatalogStats()
-  ]);
-  const trendingProjects = allTrendingProjects.slice(0, 5);
-  const spotlightProjects = [featuredProjects[0], ...allTrendingProjects]
-    .filter((project): project is NonNullable<(typeof allTrendingProjects)[number]> => Boolean(project))
-    .filter((project, index, array) => array.findIndex((entry) => entry.id === project.id) === index)
-    .slice(0, 3);
+  const profile = session.interestProfile ?? getEmptyProfile();
+  const personalizedHome = await buildPersonalizedHomeData({
+    profile,
+    viewerGithubLogin: session.user.githubLogin
+  });
+  const creatorsById = new Map(personalizedHome.allCreators.map((creator) => [creator.id, creator]));
+  const suggestedInterests = getSuggestedInterestCategories();
+  const showInterestPicker = profile.confidence === "low" && profile.manualInterests.length === 0;
+  const loginNeedsReconnect = !session.github?.accessToken;
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[1.8rem] border border-ink-100 bg-white">
-        <div className="border-b border-ink-100 px-5 py-4 sm:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="overflow-hidden rounded-[1.8rem] border border-ink-200 bg-white">
+        <div className="border-b border-ink-100 px-5 py-5 sm:px-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-2xl font-semibold text-ink-900">{dictionary.sidebar.discoverLabel}</p>
-              <p className="mt-1 text-sm text-ink-500">Creator-first open-source discovery, not a repo dump.</p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-ink-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Personalized home</p>
+              <h1 className="mt-3 font-display text-4xl leading-[1.02] text-ink-900">
+                Recommendations shaped by your GitHub repos
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-600">
+                Signed in as <span className="font-semibold text-ink-900">@{session.user.githubLogin}</span>. We start
+                with your own repos, infer what you build, then rank matching projects inside BLAC.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-ink-600">
                 <span className="rounded-full bg-ink-100 px-3 py-1">
-                  {stats.indexedProjectCount.toLocaleString()} indexed
+                  {profile.repoCount.toLocaleString()} repos checked
                 </span>
                 <span className="rounded-full bg-accent-50 px-3 py-1 text-accent-700">
-                  {stats.qualifiedProjectCount.toLocaleString()} browseable
+                  {profile.analyzedRepoCount.toLocaleString()} strong signals
                 </span>
                 <span className="rounded-full bg-[#fff4e8] px-3 py-1 text-[#b86a00]">
-                  {stats.curatedProjectCount.toLocaleString()} editorial picks
+                  {profile.confidence} confidence
                 </span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-6 text-sm font-semibold text-ink-400">
-              <Link className="border-b-2 border-ink-900 pb-3 text-ink-900" href="/">
-                Home
-              </Link>
-              <Link className="pb-3 transition hover:text-ink-700" href="/explore">
-                Projects
-              </Link>
-              <Link className="pb-3 transition hover:text-ink-700" href="/creators">
-                Builders
+            <div className="flex flex-col gap-3">
+              <RefreshRecommendationsButton />
+              <Link
+                className="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800"
+                href="/explore"
+              >
+                Browse all projects
               </Link>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-[1.15fr_1.1fr_0.95fr]">
-          <div className="rounded-[1.6rem] border border-ink-100 bg-[linear-gradient(135deg,#ffffff,#f4f8ff)] p-6 lg:col-span-3">
-            <div className="grid gap-6 lg:grid-cols-[1.45fr_0.75fr]">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">{ui.heroEyebrow}</p>
-                <h2 className="mt-3 max-w-2xl font-display text-4xl leading-[1.02] text-ink-900">{ui.heroTitle}</h2>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-600">{ui.heroDescription}</p>
-                <div className="mt-5 max-w-3xl">
-                  <SearchForm
-                    hintChips={["playwright", "seo tools", "nextjs starter", "discord bot", "grafana"]}
-                    locale={locale}
-                  />
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Link className="rounded-full bg-ink-900 px-5 py-3 text-sm font-semibold text-white" href="/explore">
-                    {ui.projectCta}
-                  </Link>
-                  <Link className="rounded-full border border-ink-200 bg-white px-5 py-3 text-sm font-semibold text-ink-800" href="/creators">
-                    {ui.builderCta}
-                  </Link>
-                </div>
+        <div className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[1.3fr_0.95fr]">
+          <div className="rounded-[1.4rem] border border-ink-100 bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Top interest areas</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(profile.topCategories.length > 0 ? profile.topCategories : profile.manualInterests).map((categorySlug: string) => (
+                <span key={categorySlug} className="rounded-full bg-ink-900 px-3 py-1.5 text-sm font-semibold text-white">
+                  {localizeCategory(locale, categorySlug)}
+                </span>
+              ))}
+              {profile.topCategories.length === 0 && profile.manualInterests.length === 0 ? (
+                <span className="rounded-full bg-ink-100 px-3 py-1.5 text-sm font-semibold text-ink-600">
+                  We still need stronger signal
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[1.1rem] bg-white px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Top languages</p>
+                <p className="mt-2 text-sm leading-6 text-ink-800">
+                  {profile.topLanguages.length > 0 ? profile.topLanguages.join(", ") : "Not enough language signal yet"}
+                </p>
               </div>
-              <div className="rounded-[1.3rem] border border-ink-100 bg-white p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">How to use this</p>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-semibold text-ink-900">1. Start with a project</p>
-                    <p className="mt-1 text-sm leading-6 text-ink-600">
-                      Check purpose, maintenance, and fit before you leave the site.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-ink-900">2. Then inspect the builder</p>
-                    <p className="mt-1 text-sm leading-6 text-ink-600">
-                      If one project is good, the creator page should reveal the rest of that public stream.
-                    </p>
-                  </div>
-                </div>
+              <div className="rounded-[1.1rem] bg-white px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Signal mode</p>
+                <p className="mt-2 text-sm leading-6 text-ink-800">
+                  {personalizedHome.fallbackMode === "repo-profile"
+                    ? "Ranking is driven mainly by your repos."
+                    : personalizedHome.fallbackMode === "manual-interests"
+                      ? "Manual category picks are helping shape this feed."
+                      : "Editorial fallback is filling the gaps until your profile gets stronger."}
+                </p>
               </div>
             </div>
           </div>
 
-          {spotlightProjects.map((project, index) => {
-            const creator = creators.find((entry) => entry.id === project.creatorId);
-            if (!creator) return null;
-
-            const spotlightClass =
-              index === 0
-                ? "bg-[radial-gradient(circle_at_top_right,rgba(95,255,112,0.22),transparent_34%),linear-gradient(135deg,#0f1116,#1c202b)] text-white"
-                : index === 1
-                  ? "bg-[radial-gradient(circle_at_top_right,rgba(255,236,82,0.22),transparent_26%),linear-gradient(135deg,#9f0e1f,#d62e32)] text-white"
-                  : "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.24),transparent_26%),linear-gradient(135deg,#2b5f89,#7db7e8)] text-white";
-
-            return (
-              <Link
-                key={project.id}
-                className={`relative overflow-hidden rounded-[1.6rem] p-5 shadow-card ${spotlightClass}`}
-                href={`/projects/${project.slug}`}
-              >
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
-                <div className="absolute left-5 top-5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/88">
-                  {index === 0 ? "Featured project" : "Worth a closer look"}
-                </div>
-                <div className="relative flex min-h-[260px] flex-col justify-end">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
-                    By {creator.displayName}
-                  </p>
-                  <h2 className="mt-3 font-display text-4xl leading-none">{project.title}</h2>
-                  <p className="mt-3 max-w-md text-sm leading-6 text-white/88">{project.summary}</p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-
-        <div className="border-t border-ink-100 px-5 py-5 sm:px-6">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {categories.map((category, index) => (
-              <Link
-                key={category.slug}
-                className="flex items-center gap-4 rounded-[1.3rem] border border-ink-100 bg-white px-4 py-4 transition hover:border-ink-300 hover:bg-ink-50"
-                href={`/explore?category=${category.slug}`}
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ink-100 text-sm font-bold text-ink-700">
-                  {categoryIcons[index % categoryIcons.length]}
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-ink-900">{localizeCategory(locale, category.slug)}</p>
-                  <p className="mt-1 text-xs text-ink-500">{category.subcategories?.slice(0, 2).join(" · ")}</p>
-                </div>
-              </Link>
-            ))}
+          <div className="rounded-[1.4rem] border border-ink-100 bg-white p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">Search after personalization</p>
+            <p className="mt-2 text-sm leading-6 text-ink-600">
+              Use search when you know the stack, problem, or tool shape you want next.
+            </p>
+            <div className="mt-4">
+              <SearchForm
+                hintChips={["playwright", "langchain", "saas starter", "grafana", "discord bot"]}
+                locale={locale}
+              />
+            </div>
+            {loginNeedsReconnect ? (
+              <div className="mt-4 rounded-[1.1rem] border border-[#f0d7ad] bg-[#fff7e8] px-4 py-3 text-sm text-[#8a5a08]">
+                <p>Your current session was created before repo-personalized login.</p>
+                <Link className="mt-2 inline-flex font-semibold underline underline-offset-4" href="/api/auth/github/start?next=%2F">
+                  Reconnect GitHub
+                </Link>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
 
+      {showInterestPicker ? (
+        <InterestPicker options={suggestedInterests} initialSelected={profile.manualInterests} />
+      ) : null}
+
       <section className="space-y-5">
         <SectionHeading
-          eyebrow={ui.projectSectionEyebrow}
-          title={ui.projectSectionTitle}
-          description={ui.projectSectionDescription}
-          action={
-            <Link className="text-sm font-semibold text-ink-700 underline-offset-4 hover:underline" href="/explore">
-              {ui.projectCta}
-            </Link>
-          }
+          eyebrow="For you"
+          title="Projects you are likely to care about next"
+          description="These are ranked against your repo history first, then filtered through BLAC's catalog."
         />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {trendingProjects.map((project) => {
-            const creator = creators.find((entry) => entry.id === project.creatorId);
-            if (!creator) return null;
+          {personalizedHome.recommendedProjects.slice(0, 10).map((project) => {
+            const creator = creatorsById.get(project.creatorId);
+            if (!creator) {
+              return null;
+            }
 
             return (
               <ProjectCard
@@ -213,32 +265,41 @@ export default async function HomePage() {
 
       <section className="space-y-5">
         <SectionHeading
-          eyebrow={ui.builderSectionEyebrow}
-          title={ui.builderSectionTitle}
-          description={ui.builderSectionDescription}
+          eyebrow="Builders"
+          title="Builders worth following next"
+          description="These creators are adjacent to the tools and stacks your repos already signal."
         />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {creators.slice(0, 5).map((creator) => (
+          {personalizedHome.recommendedCreators.slice(0, 5).map((creator) => (
             <CreatorCard key={creator.id} creator={creator} locale={locale} />
           ))}
         </div>
       </section>
 
-      <section className="rounded-[1.8rem] border border-ink-100 bg-white p-6 sm:p-8">
+      <section className="rounded-[1.8rem] border border-ink-200 bg-white p-6 sm:p-8">
         <SectionHeading
-          eyebrow={dictionary.home.editorialEyebrow}
-          title={dictionary.home.editorialTitle}
-          description={dictionary.home.editorialDescription}
-          action={
-            <Link className="text-sm font-semibold text-ink-700 underline-offset-4 hover:underline" href="/collections">
-              {dictionary.home.viewAllCollections}
-            </Link>
-          }
+          eyebrow="Backup lane"
+          title="Still worth scanning"
+          description="If your repo signal is still light, start here and keep refining the feed."
         />
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          {collections.map((collection) => (
-            <CollectionCard key={collection.id} collection={collection} locale={locale} />
-          ))}
+        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {personalizedHome.fallbackProjects.map((project) => {
+            const creator = creatorsById.get(project.creatorId);
+            if (!creator) {
+              return null;
+            }
+
+            return (
+              <ProjectCard
+                key={project.id}
+                creator={creator}
+                initialLiked={viewerState.likedProjectSlugs.includes(project.slug)}
+                initialSaved={viewerState.savedProjectSlugs.includes(project.slug)}
+                locale={locale}
+                project={project}
+              />
+            );
+          })}
         </div>
       </section>
     </div>
