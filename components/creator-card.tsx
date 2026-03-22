@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getDictionaryForLocale, type Locale } from "@/lib/i18n";
 import type { Creator } from "@/lib/types";
-import { getCreatorCoverClass } from "@/lib/visuals";
 
 type CreatorCardProps = {
   creator: Creator;
@@ -10,7 +9,6 @@ type CreatorCardProps = {
 
 export function CreatorCard({ creator, locale }: CreatorCardProps) {
   const dictionary = getDictionaryForLocale(locale);
-  const typeLabel = locale === "en" ? "Builder" : "Builder";
   const specialties = creator.specialties.slice(0, 2).join(" · ");
 
   return (
@@ -20,7 +18,7 @@ export function CreatorCard({ creator, locale }: CreatorCardProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <span className="inline-flex rounded-full border border-ink-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500">
-          {typeLabel}
+          Builder
         </span>
       </div>
       <div className="mt-4 flex items-center gap-3">
@@ -36,9 +34,10 @@ export function CreatorCard({ creator, locale }: CreatorCardProps) {
           <p className="text-sm text-ink-500">@{creator.githubLogin}</p>
         </div>
       </div>
-      <div className={`mt-4 h-28 rounded-[1rem] ${getCreatorCoverClass(creator.slug)}`} />
       <p className="mt-4 text-sm font-semibold text-ink-900">
-        {creator.projectCount > 1 ? "Builder with a visible stream of public work" : "Builder with a focused public project"}
+        {creator.projectCount > 1
+          ? "Builder with a visible stream of public work"
+          : "Builder with a focused public project"}
       </p>
       <p className="prose-muted mt-2 text-sm leading-6">{creator.bio}</p>
       <div className="mt-4 rounded-[1rem] bg-ink-50 px-4 py-3">

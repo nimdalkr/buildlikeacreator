@@ -2,7 +2,6 @@ import Link from "next/link";
 import { SignalChip } from "@/components/signal-chip";
 import { getDictionaryForLocale, type Locale } from "@/lib/i18n";
 import type { Collection } from "@/lib/types";
-import { getCollectionCoverClass } from "@/lib/visuals";
 
 type CollectionCardProps = {
   collection: Collection;
@@ -24,8 +23,13 @@ export function CollectionCard({ collection, locale }: CollectionCardProps) {
         </div>
         <SignalChip tone="accent">{collection.projectSlugs.length} {dictionary.cards.picks}</SignalChip>
       </div>
-      <div className={`mt-4 h-36 rounded-[1.2rem] ${getCollectionCoverClass(collection.slug)}`} />
       <p className="prose-muted mt-4 text-sm leading-6">{collection.description}</p>
+      <div className="mt-4 rounded-[1rem] bg-ink-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">Inside this collection</p>
+        <p className="mt-2 text-sm text-ink-800">
+          {collection.projectSlugs.length} selected projects curated around one practical theme.
+        </p>
+      </div>
       <div className="mt-6 flex flex-wrap gap-2">
         {collection.tags.slice(0, 3).map((tag) => (
           <SignalChip key={tag}>{tag}</SignalChip>
