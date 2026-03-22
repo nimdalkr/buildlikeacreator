@@ -6,10 +6,24 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const IMPORTED_REPOS_PATH = path.join(DATA_DIR, "imported-repos.json");
 const CATALOG_CACHE_PATH = path.join(DATA_DIR, "catalog-cache.json");
 const HARVEST_STATE_PATH = path.join(DATA_DIR, "catalog-harvest-state.json");
+const SNAPSHOT_HISTORY_PATH = path.join(DATA_DIR, "catalog-snapshots.json");
 
 export type CatalogHarvestState = {
   bulkQueryOffset: number;
   lastRunAt?: string;
+  lastSnapshotAt?: string;
+  lastFullHarvestAt?: string;
+  snapshotCount?: number;
+};
+
+export type CatalogSnapshotRecord = {
+  id: string;
+  mode: "daily" | "bootstrap";
+  generatedAt: string;
+  indexedProjectCount: number;
+  qualifiedProjectCount: number;
+  curatedProjectCount: number;
+  publicCreatorCount: number;
 };
 
 export async function ensureDataDir() {
@@ -61,10 +75,21 @@ export async function writeCatalogCache<T>(data: T) {
 
 export async function readCatalogHarvestState() {
   return readJsonFile<CatalogHarvestState>(HARVEST_STATE_PATH, {
-    bulkQueryOffset: 0
+    bulkQueryOffset: 0,
+    snapshotCount: 0
   });
 }
 
 export async function writeCatalogHarvestState(state: CatalogHarvestState) {
   await writeJsonFile(HARVEST_STATE_PATH, state);
+}
+
+export async function readCatalogSnapshots() {
+  return readJsonFile<CatalogSnapshotRecord[]>(SNAPSHOT_HISTORY_PATH, []);
+}
+
+export async function appendCatalogSnapshot(snapshot: CatalogSnapshotRecord) {
+  const existing = await readCatalogSnapshots();
+  const next = [snapshot, ...existing].slice(0, 90);
+  await writeJsonFile(SNAPSHOT_HISTORY_PATH, next);
 }

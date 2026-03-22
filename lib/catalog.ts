@@ -19,8 +19,10 @@ import {
   type ImportedRepoSource
 } from "@/lib/curated-github-sources";
 import {
+  appendCatalogSnapshot,
   readCatalogCache,
   readCatalogHarvestState,
+  readCatalogSnapshots,
   readImportedRepos,
   writeCatalogCache,
   writeCatalogHarvestState
@@ -50,6 +52,8 @@ type CatalogStats = {
   curatedProjectCount: number;
   publicCreatorCount: number;
   indexedCreatorCount: number;
+  lastSnapshotAt?: string;
+  snapshotCount?: number;
 };
 
 type CatalogProjectDraft = Omit<Project, "creatorId"> & {
@@ -685,7 +689,10 @@ function mergeCatalogProjects(
 }
 
 async function fetchBulkRepositoriesByCategory(offset: number) {
-  const rounds = Math.max(1, BULK_QUERY_BATCH_ROUNDS);
+  return fetchBulkRepositoriesByCategoryWithRounds(offset, Math.max(1, BULK_QUERY_BATCH_ROUNDS));
+}
+
+async function fetchBulkRepositoriesByCategoryWithRounds(offset: number, rounds: number) {
   let cursor = offset;
   const allSearchTasks: Array<{
     category: string;
@@ -750,7 +757,8 @@ async function fetchBulkRepositoriesByCategory(offset: number) {
 async function fetchCatalogFromGitHub(
   importedSources: ImportedRepoSource[],
   previousCatalog?: CatalogData | null,
-  bulkQueryOffset = 0
+  bulkQueryOffset = 0,
+  roundCount = Math.max(1, BULK_QUERY_BATCH_ROUNDS)
 ): Promise<{ catalog: CatalogData; nextBulkQueryOffset: number }> {
   const allSources = [...curatedRepoSources, ...importedSources];
   const [snapshots, bulkResult] = await Promise.all([
@@ -764,7 +772,7 @@ async function fetchCatalogFromGitHub(
       }
     })
     ),
-    fetchBulkRepositoriesByCategory(bulkQueryOffset)
+    fetchBulkRepositoriesByCategoryWithRounds(bulkQueryOffset, roundCount)
   ]);
   const bulkRepositories = bulkResult.repositories;
 
@@ -970,12 +978,16 @@ async function loadCatalogInternal(forceRefresh = false): Promise<CatalogData> {
       const { catalog: liveCatalog, nextBulkQueryOffset } = await fetchCatalogFromGitHub(
         importedSources,
         cached?.data ?? null,
-        harvestState.bulkQueryOffset
+        harvestState.bulkQueryOffset,
+        Math.max(1, BULK_QUERY_BATCH_ROUNDS)
       );
       await writeCatalogCache(liveCatalog);
       await writeCatalogHarvestState({
         bulkQueryOffset: nextBulkQueryOffset,
-        lastRunAt: new Date().toISOString()
+        lastRunAt: new Date().toISOString(),
+        lastSnapshotAt: harvestState.lastSnapshotAt,
+        lastFullHarvestAt: harvestState.lastFullHarvestAt,
+        snapshotCount: harvestState.snapshotCount ?? 0
       });
       memoryCache = liveCatalog;
       memoryCacheExpiresAt = Date.now() + CACHE_TTL_MS;
@@ -1009,6 +1021,46 @@ export async function refreshCatalog() {
   return loadCatalogInternal(true);
 }
 
+export async function createCatalogSnapshot(mode: "daily" | "bootstrap" = "daily") {
+  const cached = await readCatalogCache<CatalogData>();
+  const importedSources = await readImportedRepos();
+  const previousCatalog = cached?.data ?? null;
+  const totalRounds = Math.max(1, Math.ceil(bulkCategoryQueries.length / BULK_QUERY_BATCH_SIZE));
+  const { catalog } = await fetchCatalogFromGitHub(importedSources, previousCatalog, 0, totalRounds);
+  const generatedAt = new Date().toISOString();
+  const harvestState = await readCatalogHarvestState();
+
+  await writeCatalogCache(catalog);
+  await appendCatalogSnapshot({
+    id: `snapshot-${generatedAt}`,
+    mode,
+    generatedAt,
+    indexedProjectCount: catalog.stats.indexedProjectCount,
+    qualifiedProjectCount: catalog.stats.qualifiedProjectCount,
+    curatedProjectCount: catalog.stats.curatedProjectCount,
+    publicCreatorCount: catalog.stats.publicCreatorCount
+  });
+  await writeCatalogHarvestState({
+    bulkQueryOffset: 0,
+    lastRunAt: generatedAt,
+    lastSnapshotAt: generatedAt,
+    lastFullHarvestAt: generatedAt,
+    snapshotCount: (harvestState.snapshotCount ?? 0) + 1
+  });
+
+  memoryCache = {
+    ...catalog,
+    stats: {
+      ...catalog.stats,
+      lastSnapshotAt: generatedAt,
+      snapshotCount: (harvestState.snapshotCount ?? 0) + 1
+    }
+  };
+  memoryCacheExpiresAt = Date.now() + CACHE_TTL_MS;
+  inflightCatalogPromise = null;
+  return memoryCache;
+}
+
 export { categories };
 
 export async function getCollections() {
@@ -1020,7 +1072,15 @@ export async function getCreators() {
 }
 
 export async function getCatalogStats() {
-  return (await loadCatalogInternal()).stats;
+  const catalog = await loadCatalogInternal();
+  const harvestState = await readCatalogHarvestState();
+  const snapshots = await readCatalogSnapshots();
+
+  return {
+    ...catalog.stats,
+    lastSnapshotAt: harvestState.lastSnapshotAt ?? snapshots[0]?.generatedAt,
+    snapshotCount: harvestState.snapshotCount ?? snapshots.length
+  };
 }
 
 export async function getIndexedProjects() {
