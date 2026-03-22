@@ -10,11 +10,12 @@ type CreatorCardProps = {
 
 export function CreatorCard({ creator, locale }: CreatorCardProps) {
   const dictionary = getDictionaryForLocale(locale);
-  const typeLabel = locale === "ko" ? "빌더" : locale === "ja" ? "ビルダー" : locale === "zh" ? "创作者" : "Builder";
+  const typeLabel = locale === "en" ? "Builder" : "Builder";
+  const specialties = creator.specialties.slice(0, 2).join(" · ");
 
   return (
     <Link
-      className="group flex h-full flex-col rounded-[1.5rem] border border-ink-100 bg-white p-5 transition hover:-translate-y-1 hover:shadow-card"
+      className="group flex h-full flex-col rounded-[1.5rem] border border-ink-100 bg-white p-5 transition hover:-translate-y-1 hover:border-ink-300 hover:shadow-card"
       href={`/creators/${creator.slug}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -36,16 +37,13 @@ export function CreatorCard({ creator, locale }: CreatorCardProps) {
         </div>
       </div>
       <div className={`mt-4 h-28 rounded-[1rem] ${getCreatorCoverClass(creator.slug)}`} />
-      <p className="prose-muted mt-4 text-sm leading-6">{creator.bio}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {creator.specialties.slice(0, 3).map((specialty) => (
-          <span
-            key={specialty}
-            className="rounded-full border border-ink-200 px-3 py-1 text-xs text-ink-700"
-          >
-            {specialty}
-          </span>
-        ))}
+      <p className="mt-4 text-sm font-semibold text-ink-900">
+        {creator.projectCount > 1 ? "Builder with a visible stream of public work" : "Builder with a focused public project"}
+      </p>
+      <p className="prose-muted mt-2 text-sm leading-6">{creator.bio}</p>
+      <div className="mt-4 rounded-[1rem] bg-ink-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">Current focus</p>
+        <p className="mt-2 text-sm text-ink-800">{specialties || "Open-source builder workflows"}</p>
       </div>
       <div className="mt-5 flex gap-5 text-sm text-ink-500">
         <span>{creator.projectCount} {dictionary.cards.projects}</span>

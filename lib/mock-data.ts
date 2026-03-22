@@ -1,4 +1,22 @@
 import type { Category, Collection, Creator, Project, SearchResult } from "@/lib/types";
+import { deriveProjectCurationMetadata } from "@/lib/project-curation";
+
+type MockProjectSeed = Omit<
+  Project,
+  | "subcategories"
+  | "audienceTags"
+  | "useCaseTags"
+  | "formatTags"
+  | "difficulty"
+  | "maintenanceTag"
+  | "licenseTag"
+  | "badges"
+  | "recommendedFor"
+  | "strengths"
+  | "caveats"
+  | "installDifficulty"
+  | "productionReadiness"
+>;
 
 export const categories: Category[] = [
   {
@@ -60,7 +78,7 @@ export const creators: Creator[] = [
   }
 ];
 
-export const projects: Project[] = [
+const rawProjects: MockProjectSeed[] = [
   {
     id: "project-1",
     slug: "agent-handbook",
@@ -164,6 +182,24 @@ export const projects: Project[] = [
     featuredInCollectionSlugs: ["tools-with-a-point-of-view"]
   }
 ];
+
+export const projects: Project[] = rawProjects.map((project) => {
+  const metadata = deriveProjectCurationMetadata({
+    title: project.title,
+    summary: project.summary,
+    primaryCategory: project.primaryCategory,
+    tags: project.tags,
+    language: project.language,
+    demoUrl: project.demoUrl,
+    docsUrl: project.docsUrl,
+    updatedAt: project.updatedAt
+  });
+
+  return {
+    ...project,
+    ...metadata
+  };
+});
 
 export const collections: Collection[] = [
   {

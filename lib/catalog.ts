@@ -14,10 +14,17 @@ import {
   categories,
   curatedCollections,
   curatedRepoSources,
+  type BulkCategoryQuery,
   type CuratedRepoSource,
   type ImportedRepoSource
 } from "@/lib/curated-github-sources";
-import { readCatalogCache, readImportedRepos, writeCatalogCache } from "@/lib/catalog-store";
+import {
+  readCatalogCache,
+  readCatalogHarvestState,
+  readImportedRepos,
+  writeCatalogCache,
+  writeCatalogHarvestState
+} from "@/lib/catalog-store";
 import {
   fetchGitHubRepository,
   searchGitHubRepositories,
@@ -25,6 +32,7 @@ import {
   type GitHubSearchRepositoryItem
 } from "@/lib/github";
 import * as mockCatalog from "@/lib/mock-data";
+import { deriveProjectCurationMetadata } from "@/lib/project-curation";
 
 type CatalogData = {
   categories: Category[];
@@ -52,10 +60,11 @@ type CatalogProjectDraft = Omit<Project, "creatorId"> & {
 };
 
 const CACHE_TTL_MS = Number(process.env.GITHUB_CATALOG_CACHE_MINUTES ?? "30") * 60 * 1000;
-const BULK_PAGES_PER_QUERY = Number(
-  process.env.GITHUB_BULK_PAGES_PER_QUERY ?? (process.env.GITHUB_TOKEN ? "3" : "1")
-);
+const BULK_PAGES_PER_QUERY = Number(process.env.GITHUB_BULK_PAGES_PER_QUERY ?? "1");
 const BULK_RESULTS_PER_PAGE = Number(process.env.GITHUB_BULK_RESULTS_PER_PAGE ?? "100");
+const BULK_QUERY_BATCH_SIZE = Number(
+  process.env.GITHUB_BULK_QUERY_BATCH_SIZE ?? (process.env.GITHUB_TOKEN ? "24" : "8")
+);
 const MIN_QUALIFICATION_SCORE = Number(process.env.GITHUB_QUALIFICATION_SCORE_MIN ?? "7");
 const MIN_QUALIFICATION_STARS = Number(process.env.GITHUB_QUALIFICATION_MIN_STARS ?? "30");
 const MAX_QUALIFICATION_STALE_DAYS = Number(process.env.GITHUB_QUALIFICATION_MAX_STALE_DAYS ?? "540");
@@ -69,6 +78,26 @@ const LIMITED_STATUS_QUALIFICATION_SCORE_MIN = Number(
 let memoryCache: CatalogData | null = null;
 let memoryCacheExpiresAt = 0;
 let inflightCatalogPromise: Promise<CatalogData> | null = null;
+
+function withProjectDefaults(project: Project): Project {
+  return {
+    ...project,
+    subcategories: project.subcategories ?? [],
+    audienceTags: project.audienceTags ?? [],
+    useCaseTags: project.useCaseTags ?? [],
+    formatTags: project.formatTags ?? [],
+    difficulty: project.difficulty ?? "Intermediate",
+    maintenanceTag: project.maintenanceTag ?? "Recently updated",
+    licenseTag:
+      project.licenseTag ?? (project.license && project.license !== "NOASSERTION" ? project.license : "Custom / Unknown"),
+    badges: project.badges ?? [],
+    recommendedFor: project.recommendedFor ?? "",
+    strengths: project.strengths ?? [],
+    caveats: project.caveats ?? [],
+    installDifficulty: project.installDifficulty ?? "Moderate",
+    productionReadiness: project.productionReadiness ?? "Great for learning"
+  };
+}
 
 function isImportedSource(source: CuratedRepoSource | ImportedRepoSource): source is ImportedRepoSource {
   return "claimIntent" in source;
@@ -240,13 +269,13 @@ function calculateQualificationScore(project: {
   if (project.tags.length === 0) score -= 1;
   if (thinSummary) score -= 2;
 
-  if (sandboxyTitle && stars < 200 && project.primaryCategory !== "starters") {
+  if (sandboxyTitle && stars < 200 && project.primaryCategory !== "templates-boilerplates") {
     score -= 3;
   }
 
   if (
     /(template|boilerplate|starter)/i.test(project.title) &&
-    project.primaryCategory !== "starters" &&
+    project.primaryCategory !== "templates-boilerplates" &&
     stars < 100
   ) {
     score -= 2;
@@ -372,7 +401,20 @@ function deriveProjectFromSnapshot(
     claimed: isImportedSource(source) ? source.claimIntent === "creator" : Boolean(source.claimed),
     creatorGithubLogin: snapshot.owner.login.toLowerCase(),
     primaryCategory: source.primaryCategory,
+    subcategories: [],
     tags,
+    audienceTags: [],
+    useCaseTags: [],
+    formatTags: [],
+    difficulty: "Intermediate",
+    maintenanceTag: "Recently updated",
+    licenseTag: "Custom / Unknown",
+    badges: [],
+    recommendedFor: "",
+    strengths: [],
+    caveats: [],
+    installDifficulty: "Moderate",
+    productionReadiness: "Great for learning",
     language: snapshot.repo.language ?? "Unknown",
     githubUrl,
     githubFullName: snapshot.repo.full_name,
@@ -411,8 +453,22 @@ function deriveProjectFromSnapshot(
   };
 
   const qualificationScore = calculateQualificationScore(baseProject);
+  const curationMetadata = deriveProjectCurationMetadata({
+    title: baseProject.title,
+    summary: baseProject.summary,
+    primaryCategory: baseProject.primaryCategory,
+    tags: baseProject.tags,
+    language: baseProject.language,
+    githubStars: baseProject.githubStars,
+    githubForks: baseProject.githubForks,
+    demoUrl: baseProject.demoUrl,
+    docsUrl: baseProject.docsUrl,
+    license: baseProject.license,
+    updatedAt: baseProject.updatedAt
+  });
   return {
     ...baseProject,
+    ...curationMetadata,
     qualificationScore,
     discoveryTier: deriveDiscoveryTier({
       sourceKind,
@@ -429,7 +485,7 @@ function deriveProjectFromBulkRepository(
   repository: GitHubSearchRepositoryItem
 ): CatalogProjectDraft {
   const [owner, repoName] = repository.full_name.split("/");
-  const narrative = bulkCategoryNarratives[category] ?? bulkCategoryNarratives.devtools;
+  const narrative = bulkCategoryNarratives[category] ?? bulkCategoryNarratives["developer-tools"];
   const githubUrl = repository.html_url;
   const summary =
     repository.description?.trim() ||
@@ -459,7 +515,20 @@ function deriveProjectFromBulkRepository(
     claimed: false,
     creatorGithubLogin: repository.owner.login.toLowerCase(),
     primaryCategory: category,
+    subcategories: [],
     tags: Array.from(new Set(repository.topics ?? [])).slice(0, 6),
+    audienceTags: [],
+    useCaseTags: [],
+    formatTags: [],
+    difficulty: "Intermediate",
+    maintenanceTag: "Recently updated",
+    licenseTag: "Custom / Unknown",
+    badges: [],
+    recommendedFor: "",
+    strengths: [],
+    caveats: [],
+    installDifficulty: "Moderate",
+    productionReadiness: "Great for learning",
     language: repository.language ?? "Unknown",
     githubUrl,
     githubFullName: repository.full_name,
@@ -491,8 +560,22 @@ function deriveProjectFromBulkRepository(
   };
 
   const qualificationScore = calculateQualificationScore(baseProject);
+  const curationMetadata = deriveProjectCurationMetadata({
+    title: baseProject.title,
+    summary: baseProject.summary,
+    primaryCategory: baseProject.primaryCategory,
+    tags: baseProject.tags,
+    language: baseProject.language,
+    githubStars: baseProject.githubStars,
+    githubForks: baseProject.githubForks,
+    demoUrl: baseProject.demoUrl,
+    docsUrl: baseProject.docsUrl,
+    license: baseProject.license,
+    updatedAt: baseProject.updatedAt
+  });
   return {
     ...baseProject,
+    ...curationMetadata,
     qualificationScore,
     discoveryTier: deriveDiscoveryTier({
       sourceKind: "bulk",
@@ -505,12 +588,14 @@ function deriveProjectFromBulkRepository(
 }
 
 function buildFallbackCatalog(): CatalogData {
-  const fallbackProjects = mockCatalog.projects.map((project) => ({
-    ...project,
-    sourceKind: "curated" as const,
-    discoveryTier: "curated" as const,
-    qualificationScore: 100
-  }));
+  const fallbackProjects = mockCatalog.projects.map((project) =>
+    withProjectDefaults({
+      ...project,
+      sourceKind: "curated" as const,
+      discoveryTier: "curated" as const,
+      qualificationScore: 100
+    } as Project)
+  );
   return {
     categories: mockCatalog.categories,
     collections: mockCatalog.collections,
@@ -528,19 +613,96 @@ function buildFallbackCatalog(): CatalogData {
   };
 }
 
-async function fetchBulkRepositoriesByCategory() {
-  const searchTasks = bulkCategoryQueries.flatMap(({ category, query }) =>
+function getBulkQueryBatch(offset: number) {
+  if (bulkCategoryQueries.length === 0) {
+    return {
+      queries: [] as BulkCategoryQuery[],
+      nextOffset: 0
+    };
+  }
+
+  const normalizedOffset = ((offset % bulkCategoryQueries.length) + bulkCategoryQueries.length) % bulkCategoryQueries.length;
+  const batchSize = Math.min(BULK_QUERY_BATCH_SIZE, bulkCategoryQueries.length);
+  const queries = Array.from({ length: batchSize }, (_, index) => {
+    const cursor = (normalizedOffset + index) % bulkCategoryQueries.length;
+    return bulkCategoryQueries[cursor];
+  });
+
+  return {
+    queries,
+    nextOffset: (normalizedOffset + batchSize) % bulkCategoryQueries.length
+  };
+}
+
+function mergeCatalogProjects(
+  currentProjects: CatalogProjectDraft[],
+  previousCatalog?: CatalogData | null
+) {
+  const merged = new Map<string, CatalogProjectDraft>();
+  const previousPublicCreatorIds = new Set((previousCatalog?.creators ?? []).map((creator) => creator.id));
+
+  for (const project of previousCatalog?.indexedProjects ?? []) {
+    if (!project.githubFullName || !previousPublicCreatorIds.has(project.creatorId)) {
+      continue;
+    }
+
+    merged.set(project.githubFullName.toLowerCase(), {
+      ...withProjectDefaults(project),
+      creatorGithubLogin: project.githubFullName.split("/")[0].toLowerCase(),
+      sourceKind: project.sourceKind ?? "bulk",
+      discoveryTier: project.discoveryTier ?? "indexed",
+      qualificationScore: project.qualificationScore ?? 0
+    });
+  }
+
+  for (const project of currentProjects) {
+    const key = project.githubFullName?.toLowerCase() ?? project.slug;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, project);
+      continue;
+    }
+
+    const existingUpdatedAt = Date.parse(existing.updatedAt);
+    const nextUpdatedAt = Date.parse(project.updatedAt);
+    const preferIncoming =
+      project.discoveryTier === "curated" ||
+      Number.isNaN(existingUpdatedAt) ||
+      (!Number.isNaN(nextUpdatedAt) && nextUpdatedAt >= existingUpdatedAt);
+
+    if (preferIncoming) {
+      merged.set(key, {
+        ...existing,
+        ...project
+      });
+    }
+  }
+
+  return [...merged.values()];
+}
+
+async function fetchBulkRepositoriesByCategory(offset: number) {
+  const { queries, nextOffset } = getBulkQueryBatch(offset);
+  const searchTasks = queries.flatMap(({ category, query, sort, order }) =>
     Array.from({ length: BULK_PAGES_PER_QUERY }, (_, index) => ({
       category,
       query,
+      sort,
+      order,
       page: index + 1
     }))
   );
 
   const searchResults = await Promise.all(
-    searchTasks.map(async ({ category, query, page }) => {
+    searchTasks.map(async ({ category, query, sort, order, page }) => {
       try {
-        const result = await searchGitHubRepositories(query, page, BULK_RESULTS_PER_PAGE);
+        const result = await searchGitHubRepositories(
+          query,
+          page,
+          BULK_RESULTS_PER_PAGE,
+          sort ?? "stars",
+          order ?? "desc"
+        );
         return result.items.map((item) => ({
           category,
           item
@@ -560,12 +722,19 @@ async function fetchBulkRepositoriesByCategory() {
     }
   }
 
-  return [...deduped.values()];
+  return {
+    repositories: [...deduped.values()],
+    nextOffset
+  };
 }
 
-async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
+async function fetchCatalogFromGitHub(
+  importedSources: ImportedRepoSource[],
+  previousCatalog?: CatalogData | null,
+  bulkQueryOffset = 0
+): Promise<{ catalog: CatalogData; nextBulkQueryOffset: number }> {
   const allSources = [...curatedRepoSources, ...importedSources];
-  const [snapshots, bulkRepositories] = await Promise.all([
+  const [snapshots, bulkResult] = await Promise.all([
     Promise.all(
     allSources.map(async (source) => {
       try {
@@ -576,8 +745,9 @@ async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
       }
     })
     ),
-    fetchBulkRepositoriesByCategory()
+    fetchBulkRepositoriesByCategory(bulkQueryOffset)
   ]);
+  const bulkRepositories = bulkResult.repositories;
 
   const liveEntries = snapshots.filter(
     (entry): entry is { source: CuratedRepoSource | ImportedRepoSource; snapshot: GitHubRepoSnapshot } =>
@@ -596,6 +766,10 @@ async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
   );
 
   const creatorMap = new Map<string, Creator>();
+
+  for (const creator of previousCatalog?.creators ?? []) {
+    creatorMap.set(creator.githubLogin.toLowerCase(), { ...creator, projectCount: 0 });
+  }
 
   for (const { source, snapshot } of liveEntries) {
     const key = snapshot.owner.login.toLowerCase();
@@ -654,18 +828,9 @@ async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
     );
   }
 
-  const dedupedProjects = new Map<string, CatalogProjectDraft>();
-  for (const project of rawProjects) {
-    dedupedProjects.set(project.githubFullName?.toLowerCase() ?? project.slug, project);
-  }
-  for (const project of bulkProjects) {
-    const key = project.githubFullName?.toLowerCase() ?? project.slug;
-    if (!dedupedProjects.has(key)) {
-      dedupedProjects.set(key, project);
-    }
-  }
+  const mergedProjectDrafts = mergeCatalogProjects([...rawProjects, ...bulkProjects], previousCatalog);
 
-  const indexedProjects = [...dedupedProjects.values()].map((project) => {
+  const indexedProjects = mergedProjectDrafts.map((project) => {
     const { creatorGithubLogin, ...projectData } = project;
     const creator = creatorMap.get(project.creatorGithubLogin);
     if (!creator) {
@@ -729,7 +894,7 @@ async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
     }))
     .filter((collection) => collection.projectSlugs.length > 0);
 
-  return {
+  const catalog: CatalogData = {
     categories,
     creators: publicCreators,
     indexedProjects: sortedIndexedProjects,
@@ -743,7 +908,12 @@ async function fetchCatalogFromGitHub(importedSources: ImportedRepoSource[]) {
       publicCreatorCount: publicCreators.length,
       indexedCreatorCount: creatorMap.size
     }
-  } satisfies CatalogData;
+  };
+
+  return {
+    catalog,
+    nextBulkQueryOffset: bulkResult.nextOffset
+  };
 }
 
 async function loadCatalogInternal(forceRefresh = false): Promise<CatalogData> {
@@ -761,18 +931,33 @@ async function loadCatalogInternal(forceRefresh = false): Promise<CatalogData> {
     if (
       !forceRefresh &&
       cached &&
-      Date.now() - new Date(cached.generatedAt).getTime() < CACHE_TTL_MS
+      Date.now() - new Date(cached.generatedAt).getTime() < CACHE_TTL_MS &&
+      cached.data.categories.length >= categories.length
     ) {
-      memoryCache = cached.data;
+      memoryCache = {
+        ...cached.data,
+        indexedProjects: cached.data.indexedProjects.map(withProjectDefaults),
+        publicProjects: cached.data.publicProjects.map(withProjectDefaults),
+        curatedProjects: cached.data.curatedProjects.map(withProjectDefaults)
+      };
       memoryCacheExpiresAt = now + CACHE_TTL_MS;
-      return cached.data;
+      return memoryCache;
     }
 
     const importedSources = await readImportedRepos();
+    const harvestState = await readCatalogHarvestState();
 
     try {
-      const liveCatalog = await fetchCatalogFromGitHub(importedSources);
+      const { catalog: liveCatalog, nextBulkQueryOffset } = await fetchCatalogFromGitHub(
+        importedSources,
+        cached?.data ?? null,
+        harvestState.bulkQueryOffset
+      );
       await writeCatalogCache(liveCatalog);
+      await writeCatalogHarvestState({
+        bulkQueryOffset: nextBulkQueryOffset,
+        lastRunAt: new Date().toISOString()
+      });
       memoryCache = liveCatalog;
       memoryCacheExpiresAt = Date.now() + CACHE_TTL_MS;
       return liveCatalog;
@@ -917,8 +1102,12 @@ export async function getSearchResults(query: string): Promise<SearchResult[]> {
         project.summary,
         project.contextualText,
         project.primaryCategory,
+        ...(project.subcategories ?? []),
         project.githubFullName,
-        ...(project.tags ?? [])
+        ...(project.tags ?? []),
+        ...(project.badges ?? []),
+        ...(project.audienceTags ?? []),
+        ...(project.useCaseTags ?? [])
       ]
         .join(" ")
         .toLowerCase()

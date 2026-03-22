@@ -74,6 +74,26 @@ export function getSimpleProjectDescription(project: Project, locale: Locale) {
       return "A UI component tool for building interfaces faster";
     }
 
+    if (includesAny(text, ["analytics", "dashboard", "superset", "grafana", "metabase"])) {
+      return "A data and dashboard tool for reporting or monitoring";
+    }
+
+    if (includesAny(text, ["seo", "keyword", "marketing", "research"])) {
+      return "A marketing or research tool for finding growth insights";
+    }
+
+    if (includesAny(text, ["wallet", "web3", "blockchain", "contract", "solidity"])) {
+      return "A web3 tool for wallets, contracts, or onchain apps";
+    }
+
+    if (includesAny(text, ["discord", "telegram", "community", "social"])) {
+      return "A community tool for bots, engagement, or social workflows";
+    }
+
+    if (includesAny(text, ["godot", "phaser", "game", "interactive", "3d"])) {
+      return "A game or interactive project for playable experiences";
+    }
+
     if (includesAny(text, ["framework", "next.js", "react framework"])) {
       return "A framework for building web products";
     }

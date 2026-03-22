@@ -25,7 +25,7 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <body className="font-sans text-ink-900 antialiased">
-        <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
           <aside className="border-b border-ink-100 bg-white/90 px-3 py-3 backdrop-blur lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <SiteHeader />
           </aside>

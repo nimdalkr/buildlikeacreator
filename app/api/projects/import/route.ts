@@ -12,29 +12,97 @@ import { getSessionUser } from "@/lib/session";
 function inferCategory(topics: string[], language?: string | null) {
   const normalizedTopics = topics.map((topic) => topic.toLowerCase());
 
-  if (normalizedTopics.some((topic) => ["agent", "agents", "llm", "ai"].includes(topic))) {
-    return "ai-agents";
+  if (
+    normalizedTopics.some((topic) =>
+      ["llm", "rag", "chatbot", "prompt", "voice-ai", "vision", "ocr"].includes(topic)
+    )
+  ) {
+    return "ai-llm";
   }
 
   if (
     normalizedTopics.some((topic) =>
-      ["automation", "workflow", "integration", "orchestration"].includes(topic)
+      ["agent", "agents", "automation", "workflow", "integration", "orchestration", "browser-automation"].includes(topic)
     )
   ) {
-    return "automation";
+    return "agents-automation";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["cli", "devtools", "developer-tools", "codegen", "debugging", "testing", "qa"].includes(topic)
+    )
+  ) {
+    return "developer-tools";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["starter", "template", "boilerplate", "saas-template", "admin-template"].includes(topic)
+    )
+  ) {
+    return "templates-boilerplates";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["design-system", "component-library", "ui", "frontend", "animation", "tailwindcss"].includes(topic)
+    )
+  ) {
+    return "design-frontend";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["analytics", "dashboard", "etl", "data-pipeline", "web-scraping", "monitoring"].includes(topic)
+    )
+  ) {
+    return "data-analytics";
   }
 
   if (
     normalizedTopics.some((topic) => ["starter", "template", "boilerplate"].includes(topic))
   ) {
-    return "starters";
+    return "templates-boilerplates";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["seo", "keyword-research", "marketing", "content-marketing", "competitor-analysis"].includes(topic)
+    )
+  ) {
+    return "marketing-seo-research";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["web3", "blockchain", "wallet", "solidity", "smart-contracts", "defi"].includes(topic)
+    )
+  ) {
+    return "web3-blockchain";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["discord-bot", "telegram-bot", "community", "leaderboard", "social"].includes(topic)
+    )
+  ) {
+    return "community-social";
+  }
+
+  if (
+    normalizedTopics.some((topic) =>
+      ["godot", "unity", "phaser", "game", "simulation", "interactive"].includes(topic)
+    )
+  ) {
+    return "gaming-interactive";
   }
 
   if (language?.toLowerCase() === "typescript") {
-    return "starters";
+    return "developer-tools";
   }
 
-  return "devtools";
+  return "developer-tools";
 }
 
 export async function POST(request: NextRequest) {

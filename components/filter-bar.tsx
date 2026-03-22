@@ -23,45 +23,51 @@ export function FilterBar({
   ];
 
   return (
-    <div className="surface rounded-[1.8rem] p-5">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Link
-            className={`rounded-full px-4 py-2 text-sm font-semibold ${
-              !activeCategory ? "bg-ink-900 text-white" : "border border-ink-200 text-ink-700"
-            }`}
-            href="/explore"
-          >
-            {dictionary.filter.all}
-          </Link>
-          {categories.map((category) => (
+    <div className="surface rounded-[1.6rem] p-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-500">Categories</p>
+          <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              key={category.slug}
               className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                activeCategory === category.slug
-                  ? "bg-ink-900 text-white"
-                  : "border border-ink-200 text-ink-700"
+                !activeCategory ? "bg-ink-900 text-white shadow-sm" : "border border-ink-200 bg-white text-ink-700"
               }`}
-              href={`/explore?category=${category.slug}&sort=${activeSort}`}
+              href="/explore"
             >
-              {localizeCategory(locale, category.slug)}
+              {dictionary.filter.all}
             </Link>
-          ))}
+            {categories.map((category) => (
+              <Link
+                key={category.slug}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  activeCategory === category.slug
+                    ? "bg-ink-900 text-white shadow-sm"
+                    : "border border-ink-200 bg-white text-ink-700"
+                }`}
+                href={`/explore?category=${category.slug}&sort=${activeSort}`}
+              >
+                {localizeCategory(locale, category.slug)}
+              </Link>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {sortOptions.map((option) => (
-            <Link
-              key={option.value}
-              className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                activeSort === option.value
-                  ? "bg-accent-500 text-white"
-                  : "border border-ink-200 text-ink-700"
-              }`}
-              href={`/explore?${activeCategory ? `category=${activeCategory}&` : ""}sort=${option.value}`}
-            >
-              {option.label}
-            </Link>
-          ))}
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-500">Sort</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {sortOptions.map((option) => (
+              <Link
+                key={option.value}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  activeSort === option.value
+                    ? "bg-accent-500 text-white shadow-sm"
+                    : "border border-ink-200 bg-white text-ink-700"
+                }`}
+                href={`/explore?${activeCategory ? `category=${activeCategory}&` : ""}sort=${option.value}`}
+              >
+                {option.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </div>

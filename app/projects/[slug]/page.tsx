@@ -87,9 +87,20 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
               <StatusBadge label={project.claimed ? dictionary.cards.claimed : dictionary.cards.unclaimed} tone={project.claimed ? "claimed" : "unclaimed"} />
               <StatusBadge label={localizeProjectStatus(locale, project.status)} tone={project.status} />
               <SignalChip tone="accent">{localizeCategory(locale, project.primaryCategory)}</SignalChip>
+              {project.subcategories.map((subcategory) => (
+                <SignalChip key={subcategory} tone="warm">{subcategory}</SignalChip>
+              ))}
               <SignalChip>{project.language}</SignalChip>
               <span className="text-sm text-ink-500">{dictionary.cards.updated} {project.updatedLabel}</span>
             </div>
+
+            {project.badges.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {project.badges.map((badge) => (
+                  <StatusBadge key={badge} label={badge} tone="recommended" />
+                ))}
+              </div>
+            ) : null}
 
             <div className="mt-8 flex flex-wrap gap-3">
               <a
@@ -166,10 +177,51 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           title={dictionary.projectDetail.metadataTitle}
           description={dictionary.projectDetail.metadataDescription}
         />
-        <div className="mt-6 flex flex-wrap gap-3">
-          {project.tags.map((tag) => (
-            <SignalChip key={tag}>{tag}</SignalChip>
-          ))}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="space-y-4 rounded-[1.4rem] border border-ink-200 bg-white p-5">
+            <p className="text-sm font-semibold text-ink-900">Recommended for</p>
+            <p className="text-sm leading-7 text-ink-600">{project.recommendedFor}</p>
+            <div className="flex flex-wrap gap-2">
+              <SignalChip>{project.difficulty}</SignalChip>
+              <SignalChip>{project.installDifficulty} setup</SignalChip>
+              <SignalChip>{project.productionReadiness}</SignalChip>
+              <SignalChip>{project.maintenanceTag}</SignalChip>
+              <SignalChip>{project.licenseTag}</SignalChip>
+            </div>
+          </div>
+          <div className="space-y-4 rounded-[1.4rem] border border-ink-200 bg-white p-5">
+            <p className="text-sm font-semibold text-ink-900">Tags and use cases</p>
+            <div className="flex flex-wrap gap-2">
+              {project.tags.map((tag) => (
+                <SignalChip key={tag}>{tag}</SignalChip>
+              ))}
+              {project.audienceTags.map((tag) => (
+                <SignalChip key={tag} tone="warm">{tag}</SignalChip>
+              ))}
+              {project.useCaseTags.map((tag) => (
+                <SignalChip key={tag}>{tag}</SignalChip>
+              ))}
+              {project.formatTags.map((tag) => (
+                <SignalChip key={tag}>{tag}</SignalChip>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3 rounded-[1.4rem] border border-ink-200 bg-white p-5">
+            <p className="text-sm font-semibold text-ink-900">Why it is strong</p>
+            <ul className="space-y-2 text-sm leading-7 text-ink-600">
+              {project.strengths.map((strength) => (
+                <li key={strength}>• {strength}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="space-y-3 rounded-[1.4rem] border border-ink-200 bg-white p-5">
+            <p className="text-sm font-semibold text-ink-900">What to watch for</p>
+            <ul className="space-y-2 text-sm leading-7 text-ink-600">
+              {project.caveats.map((caveat) => (
+                <li key={caveat}>• {caveat}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 

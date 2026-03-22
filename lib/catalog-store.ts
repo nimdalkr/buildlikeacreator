@@ -5,6 +5,12 @@ import type { ImportedRepoSource } from "@/lib/curated-github-sources";
 const DATA_DIR = path.join(process.cwd(), "data");
 const IMPORTED_REPOS_PATH = path.join(DATA_DIR, "imported-repos.json");
 const CATALOG_CACHE_PATH = path.join(DATA_DIR, "catalog-cache.json");
+const HARVEST_STATE_PATH = path.join(DATA_DIR, "catalog-harvest-state.json");
+
+export type CatalogHarvestState = {
+  bulkQueryOffset: number;
+  lastRunAt?: string;
+};
 
 export async function ensureDataDir() {
   await mkdir(DATA_DIR, { recursive: true });
@@ -51,4 +57,14 @@ export async function writeCatalogCache<T>(data: T) {
     generatedAt: new Date().toISOString(),
     data
   } satisfies CatalogCachePayload<T>);
+}
+
+export async function readCatalogHarvestState() {
+  return readJsonFile<CatalogHarvestState>(HARVEST_STATE_PATH, {
+    bulkQueryOffset: 0
+  });
+}
+
+export async function writeCatalogHarvestState(state: CatalogHarvestState) {
+  await writeJsonFile(HARVEST_STATE_PATH, state);
 }

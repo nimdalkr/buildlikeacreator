@@ -133,11 +133,17 @@ export async function fetchGitHubRepository(fullName: string): Promise<GitHubRep
   };
 }
 
-export async function searchGitHubRepositories(query: string, page = 1, perPage = 100) {
+export async function searchGitHubRepositories(
+  query: string,
+  page = 1,
+  perPage = 100,
+  sort: "stars" | "updated" = "stars",
+  order: "desc" | "asc" = "desc"
+) {
   const params = new URLSearchParams({
     q: query,
-    sort: "stars",
-    order: "desc",
+    sort,
+    order,
     per_page: String(perPage),
     page: String(page)
   });

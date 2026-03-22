@@ -8,11 +8,19 @@ export type ProjectStatus =
 
 export type ProjectSourceKind = "curated" | "imported" | "bulk";
 export type DiscoveryTier = "indexed" | "qualified" | "curated";
+export type ProjectDifficulty = "Beginner-friendly" | "Intermediate" | "Advanced";
+export type ProjectInstallDifficulty = "Easy" | "Moderate" | "Complex";
+export type ProjectProductionReadiness =
+  | "Ready for production"
+  | "Good for MVPs"
+  | "Great for learning"
+  | "Research-heavy";
 
 export type Category = {
   slug: string;
   name: string;
   description: string;
+  subcategories?: string[];
 };
 
 export type Creator = {
@@ -42,7 +50,20 @@ export type Project = {
   claimed: boolean;
   creatorId: string;
   primaryCategory: string;
+  subcategories: string[];
   tags: string[];
+  audienceTags: string[];
+  useCaseTags: string[];
+  formatTags: string[];
+  difficulty: ProjectDifficulty;
+  maintenanceTag: string;
+  licenseTag: string;
+  badges: string[];
+  recommendedFor: string;
+  strengths: string[];
+  caveats: string[];
+  installDifficulty: ProjectInstallDifficulty;
+  productionReadiness: ProjectProductionReadiness;
   language: string;
   githubUrl: string;
   githubFullName?: string;

@@ -662,12 +662,34 @@ export function getLocaleLabel(locale: Locale) {
 }
 
 export function localizeCategory(locale: Locale, categorySlugOrName: string) {
+  const fallbackEnglishLabels: Record<string, string> = {
+    "ai-llm": "AI / LLM",
+    "agents-automation": "Agents / Automation",
+    "developer-tools": "Developer Tools",
+    "templates-boilerplates": "Templates / Boilerplates",
+    "design-frontend": "Design / Frontend",
+    "data-analytics": "Data / Analytics",
+    "marketing-seo-research": "Marketing / SEO / Research",
+    "web3-blockchain": "Web3 / Blockchain",
+    "community-social": "Community / Social Tools",
+    "gaming-interactive": "Gaming / Interactive"
+  };
   const slug =
     (categorySlugOrName in categoryLabelMap
       ? categorySlugOrName
       : categoryLookupByName[categorySlugOrName]) as keyof typeof categoryLabelMap | undefined;
 
   if (!slug) {
+    if (locale === "en") {
+      return (
+        fallbackEnglishLabels[categorySlugOrName] ??
+        categorySlugOrName
+          .split("-")
+          .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+          .join(" ")
+      );
+    }
+
     return categorySlugOrName;
   }
 
