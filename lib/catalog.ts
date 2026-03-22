@@ -63,7 +63,10 @@ const CACHE_TTL_MS = Number(process.env.GITHUB_CATALOG_CACHE_MINUTES ?? "30") * 
 const BULK_PAGES_PER_QUERY = Number(process.env.GITHUB_BULK_PAGES_PER_QUERY ?? "1");
 const BULK_RESULTS_PER_PAGE = Number(process.env.GITHUB_BULK_RESULTS_PER_PAGE ?? "100");
 const BULK_QUERY_BATCH_SIZE = Number(
-  process.env.GITHUB_BULK_QUERY_BATCH_SIZE ?? (process.env.GITHUB_TOKEN ? "24" : "8")
+  process.env.GITHUB_BULK_QUERY_BATCH_SIZE ?? (process.env.GITHUB_TOKEN ? "32" : "10")
+);
+const BULK_QUERY_BATCH_ROUNDS = Number(
+  process.env.GITHUB_BULK_QUERY_BATCH_ROUNDS ?? (process.env.GITHUB_TOKEN ? "3" : "1")
 );
 const MIN_QUALIFICATION_SCORE = Number(process.env.GITHUB_QUALIFICATION_SCORE_MIN ?? "7");
 const MIN_QUALIFICATION_STARS = Number(process.env.GITHUB_QUALIFICATION_MIN_STARS ?? "30");
@@ -682,19 +685,35 @@ function mergeCatalogProjects(
 }
 
 async function fetchBulkRepositoriesByCategory(offset: number) {
-  const { queries, nextOffset } = getBulkQueryBatch(offset);
-  const searchTasks = queries.flatMap(({ category, query, sort, order }) =>
-    Array.from({ length: BULK_PAGES_PER_QUERY }, (_, index) => ({
-      category,
-      query,
-      sort,
-      order,
-      page: index + 1
-    }))
-  );
+  const rounds = Math.max(1, BULK_QUERY_BATCH_ROUNDS);
+  let cursor = offset;
+  const allSearchTasks: Array<{
+    category: string;
+    query: string;
+    sort?: "stars" | "updated";
+    order?: "desc" | "asc";
+    page: number;
+  }> = [];
+
+  for (let round = 0; round < rounds; round += 1) {
+    const { queries, nextOffset } = getBulkQueryBatch(cursor);
+    cursor = nextOffset;
+
+    for (const { category, query, sort, order } of queries) {
+      for (let page = 1; page <= BULK_PAGES_PER_QUERY; page += 1) {
+        allSearchTasks.push({
+          category,
+          query,
+          sort,
+          order,
+          page
+        });
+      }
+    }
+  }
 
   const searchResults = await Promise.all(
-    searchTasks.map(async ({ category, query, sort, order, page }) => {
+    allSearchTasks.map(async ({ category, query, sort, order, page }) => {
       try {
         const result = await searchGitHubRepositories(
           query,
@@ -724,7 +743,7 @@ async function fetchBulkRepositoriesByCategory(offset: number) {
 
   return {
     repositories: [...deduped.values()],
-    nextOffset
+    nextOffset: cursor
   };
 }
 
