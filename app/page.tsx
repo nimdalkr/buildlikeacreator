@@ -22,12 +22,17 @@ function getEmptyProfile(): UserInterestProfile {
   return {
     repoCount: 0,
     analyzedRepoCount: 0,
+    ownedRepoCount: 0,
+    starredRepoCount: 0,
+    pinnedRepoCount: 0,
+    deepAnalyzedRepoCount: 0,
     confidence: "low",
     confidenceScore: 0,
     topCategories: [],
     topSubcategories: [],
     topTags: [],
     topLanguages: [],
+    topSignals: [],
     manualInterests: [],
     lastAnalyzedAt: new Date(0).toISOString()
   };
@@ -101,8 +106,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <div className="mt-5 space-y-5">
                 <div>
                   <p className="text-sm font-semibold text-ink-900">1. We read your repo metadata</p>
-                  <p className="mt-1 text-sm leading-6 text-ink-600">
-                    Repo names, descriptions, topics, languages, stars, and recent activity. Not source code.
+              <p className="mt-1 text-sm leading-6 text-ink-600">
+                    Repo names, descriptions, topics, languages, stars, pinned repos, starred repos, and lightweight
+                    README or config signals. Not full source code.
                   </p>
                 </div>
                 <div>
@@ -157,6 +163,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 <span className="rounded-full bg-accent-50 px-3 py-1 text-accent-700">
                   {profile.analyzedRepoCount.toLocaleString()} strong signals
                 </span>
+                <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-[#3759b0]">
+                  {profile.starredRepoCount.toLocaleString()} starred
+                </span>
+                <span className="rounded-full bg-[#f4f8ff] px-3 py-1 text-[#3759b0]">
+                  {profile.pinnedRepoCount.toLocaleString()} pinned
+                </span>
                 <span className="rounded-full bg-[#fff4e8] px-3 py-1 text-[#b86a00]">
                   {profile.confidence} confidence
                 </span>
@@ -204,6 +216,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                     : personalizedHome.fallbackMode === "manual-interests"
                       ? "Manual category picks are helping shape this feed."
                       : "Editorial fallback is filling the gaps until your profile gets stronger."}
+                </p>
+              </div>
+              <div className="rounded-[1.1rem] bg-white px-4 py-4 sm:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">What we picked up</p>
+                <p className="mt-2 text-sm leading-6 text-ink-800">
+                  {profile.topSignals.length > 0
+                    ? profile.topSignals.join(", ")
+                    : "Pinned repos, stars, README clues, and key config files will show up here once we have enough signal."}
                 </p>
               </div>
             </div>

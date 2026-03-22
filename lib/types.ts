@@ -104,12 +104,17 @@ export type UserInterestConfidence = "low" | "medium" | "high";
 export type UserInterestProfile = {
   repoCount: number;
   analyzedRepoCount: number;
+  ownedRepoCount: number;
+  starredRepoCount: number;
+  pinnedRepoCount: number;
+  deepAnalyzedRepoCount: number;
   confidence: UserInterestConfidence;
   confidenceScore: number;
   topCategories: string[];
   topSubcategories: string[];
   topTags: string[];
   topLanguages: string[];
+  topSignals: string[];
   manualInterests: string[];
   lastAnalyzedAt: string;
 };

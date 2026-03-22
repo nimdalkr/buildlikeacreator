@@ -11,12 +11,17 @@ export async function GET() {
     authenticated: Boolean(user),
     user,
     profile: session?.interestProfile
-      ? {
+        ? {
           repoCount: session.interestProfile.repoCount,
           analyzedRepoCount: session.interestProfile.analyzedRepoCount,
+          ownedRepoCount: session.interestProfile.ownedRepoCount,
+          starredRepoCount: session.interestProfile.starredRepoCount,
+          pinnedRepoCount: session.interestProfile.pinnedRepoCount,
+          deepAnalyzedRepoCount: session.interestProfile.deepAnalyzedRepoCount,
           confidence: session.interestProfile.confidence,
           topCategories: session.interestProfile.topCategories,
           topLanguages: session.interestProfile.topLanguages,
+          topSignals: session.interestProfile.topSignals,
           manualInterests: session.interestProfile.manualInterests,
           lastAnalyzedAt: session.interestProfile.lastAnalyzedAt
         }

@@ -32,12 +32,17 @@ export async function POST(request: NextRequest) {
       : {
           repoCount: 0,
           analyzedRepoCount: 0,
+          ownedRepoCount: 0,
+          starredRepoCount: 0,
+          pinnedRepoCount: 0,
+          deepAnalyzedRepoCount: 0,
           confidence: "low",
           confidenceScore: 0,
           topCategories: manualInterests,
           topSubcategories: [],
           topTags: [],
           topLanguages: [],
+          topSignals: [],
           manualInterests,
           lastAnalyzedAt: new Date().toISOString()
         }
